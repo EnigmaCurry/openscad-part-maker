@@ -1,7 +1,11 @@
+use std::net::SocketAddr;
+
+use clap::ArgMatches;
 use clap_complete::shells::Shell;
 
 mod cli;
 mod prelude;
+mod server;
 
 use prelude::*;
 
@@ -76,6 +80,14 @@ fn main() {
                 1
             }
         }
+        Some(("serve", sub_matches)) => {
+            if let Err(err) = run_server_from_matches(sub_matches) {
+                eprintln!("Server error: {err:?}");
+                1
+            } else {
+                0
+            }
+        }
         _ => 1,
     };
 
@@ -90,4 +102,19 @@ fn generate_completion_script(shell: clap_complete::shells::Shell) {
         env!("CARGO_BIN_NAME"),
         &mut io::stdout(),
     )
+}
+
+fn run_server_from_matches(sub_matches: &ArgMatches) -> anyhow::Result<()> {
+    let addr_str = sub_matches
+        .get_one::<String>("listen")
+        .expect("listen has default");
+    let addr: SocketAddr = addr_str.parse()?;
+
+    let tile_scad_path = sub_matches
+        .get_one::<String>("input-scad")
+        .expect("required")
+        .into();
+
+    let rt = tokio::runtime::Runtime::new()?;
+    rt.block_on(server::run(addr, tile_scad_path))
 }

@@ -5,6 +5,11 @@ RUST_LOG := "debug"
 RUST_BACKTRACE := "1"
 GIT_REMOTE := "origin"
 
+DOCKER := "docker"
+#DOCKER := "podman"
+DOCKER_IMAGE := "openscad-part-maker"
+INPUT_SCAD := "template/tile.scad"
+
 # print help for Just targets
 help:
     @just -l
@@ -122,3 +127,10 @@ clean *args: clean-profile
 # Clean profile artifacts only
 clean-profile:
     rm -rf *.profraw *.profdata
+
+# Build docker image
+build-docker:
+    ${DOCKER} build . -t ${DOCKER_IMAGE}
+
+serve: build-docker
+    ${DOCKER} run --rm -it -p 3000:3000 ${DOCKER_IMAGE} serve --listen 0.0.0.0:3000 --input-scad ${INPUT_SCAD}

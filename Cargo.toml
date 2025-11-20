@@ -15,11 +15,19 @@ documentation = "https://docs.rs/openscad-part-maker"
 unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage,coverage_nightly)'] }
 
 [dependencies]
+anyhow = "1.0.100"
+axum = { version = "0.8.7", features = ["multipart"] }
+bytes = "1.11.0"
 clap = "4.5.17"
 clap_complete = "4.5.29"
 dirs = "5.0.1"
 env_logger = "0.11.5"
 log = "0.4.22"
+mime = "0.3.17"
+tempfile = "3.23.0"
+tokio = { version = "1.48.0", features = ["rt-multi-thread", "macros", "process", "fs", "signal"] }
+tower = "0.5.2"
+tower-http = "0.6.6"
 
 [dev-dependencies]
 shell-words = "1.1.0"
