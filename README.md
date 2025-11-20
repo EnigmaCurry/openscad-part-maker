@@ -6,55 +6,23 @@ SVG assets and to specify custom parameters. It has an API for
 processing these inputs and downloading to the user's browser the
 resulting .STL file.
 
-## Install
+## Requirements
 
-[Download the latest release for your
-platform.](https://github.com/enigmacurry/openscad-part-maker/releases)
-
-### Tab completion
-
-To install tab completion support, put this in your `~/.bashrc` (assuming you use Bash):
-
-```
-### Bash completion for openscad-part-maker (Put this in ~/.bashrc)
-source <(openscad-part-maker completions bash)
-```
-
-If you don't like to type out the full name `openscad-part-maker`, you can make
-a shorter alias (`h`), as well as enable tab completion for the alias
-(`h`):
-
-```
-### Alias openscad-part-maker as h (Put this in ~/.bashrc):
-alias h=openscad-part-maker
-complete -F _openscad-part-maker -o bashdefault -o default h
-```
-
-Completion for Zsh and/or Fish has also been implemented, but the
-author has not tested this:
-
-```
-### Zsh completion for openscad-part-maker (Put this in ~/.zshrc):
-autoload -U compinit; compinit; source <(openscad-part-maker completions zsh)
-
-### Fish completion for openscad-part-maker (Put this in ~/.config/fish/config.fish):
-openscad-part-maker completions fish | source
-```
-
-## Usage
-
-```
-$ openscad-part-maker
-
-Usage: openscad-part-maker [OPTIONS] [COMMAND]
-
-Commands:
-
-Options:
-  -h, --help                  Print help
-  -V, --version               Print version
-```
+ - Docker server and workstation to run docker commands from.
+ - Rust and Cargo (get from [https://rustup.rs](https://rustup.rs/))
+ - Just (get from
+   [https://just.systems](https://just.systems/man/en/packages.html))
 
 ## Development
 
-See [DEVELOPMENT.md](DEVELOPMENT.md)
+Build the Docker image `openscad-part-maker`:
+
+```
+just build-docker
+```
+
+Start the HTTP service for development:
+
+```
+just serve
+```
