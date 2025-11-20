@@ -1,20 +1,31 @@
 # openscad-part-maker
 
-This is a self-service web frontend for making custom 3d printed parts
-via an OpenSCAD template. It presents a web form for a user to upload
-SVG assets and to specify custom parameters. It has an API for
-processing these inputs and downloading to the user's browser the
-resulting .STL file.
+This is a self-service web app for making custom 3d printed parts via
+an OpenSCAD template. It presents a web form for a user to upload SVG
+assets and to specify custom parameters. It has an API for processing
+these inputs and downloading to the user's browser the resulting .STL
+file.
+
+## TODO
+
+ - This application is currently customized for the
+   [template/tile.scad](template/tile.scad) file. Using other CAD
+   files will require adjustment to the HTML form and Rust structs. In
+   the future, the application could be made more adatable by parsing
+   the options form the .scad file directly.
 
 ## Requirements
 
- - You will need Docker or Podman. 
+ - The recommended installation method is with Docker or Podman:
 
    - Docker is recommended for servers, which runs the container in
      the root account.
      
    - Podman is recommended for workstations, which runs the container
      locally in your normal user account.
+
+ - Alternatively, you may run the native binary for your CPU
+   architecture.
 
 ## Install
 
@@ -61,6 +72,12 @@ docker run -d \
   --input-scad ${INPUT_SCAD:-/template/tile.scad}
 ```
 
+
+### Install the native binary (without Docker or Podman)
+
+See
+[Releases](https://github.com/EnigmaCurry/openscad-part-maker/releases)
+and download the package you want to install.
 
 ## Development
 
