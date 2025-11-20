@@ -32,6 +32,8 @@ BOSS_H = 0.8;
 SPINNER_D  = 15;          // diameter of the finger‑through hole (mm)
 USE_SPINNER = true;      // set false to omit the hole
 
+SVG_PATH = "AWS-ECS-ol-ORANGE.svg";
+
 // --- Globals ---
 $fn = SEG;
 FIT = CLEARANCE/2;
@@ -39,7 +41,7 @@ LOGO_TARGET = COASTER_D - 2*MARGIN;
 
 // ------------------------------------------------
 //  2D geometry helpers
-module logo2d_raw()     { import("AWS-ECS-ol-ORANGE.svg", center=true); }
+module logo2d_raw()     { import(SVG_PATH, center=true); }
 module logo2d_sized()   { resize([LOGO_TARGET, LOGO_TARGET, 0], auto=true) logo2d_raw(); }
 module pocket2d()       { offset(delta=+FIT) logo2d_sized(); }
 module inlay2d()        { offset(delta=-FIT) logo2d_sized(); }
