@@ -12,7 +12,6 @@ jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
-    # Needed to push to ghcr.io with GITHUB_TOKEN
     permissions:
       contents: read
       packages: write
@@ -23,6 +22,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      # Enable building non-amd64 images on amd64 runners
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
       - name: Install just
         uses: extractions/setup-just@v3
@@ -40,7 +46,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          # ghcr image name must be lowercase
           IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
@@ -52,26 +57,26 @@ jobs:
             printf "%s\n" "latest" "sha-$SHORT_SHA" > tags.txt
           fi
 
+          # Convert to full image refs for build-push-action
+          FULL_TAGS=""
+          while read -r tag; do
+            FULL_TAGS+="${IMAGE}:${tag}\n"
+          done < tags.txt
+
+          echo "full_tags<<EOF" >> "$GITHUB_OUTPUT"
+          printf "%b" "$FULL_TAGS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
           echo "Tags to push:"
           cat tags.txt
 
-      - name: Build docker image (just)
-        env:
-          DOCKER_IMAGE: ${{ env.IMAGE }}:build
-        run: just build-docker
-
-      - name: Tag image variants
-        shell: bash
-        run: |
-          set -euo pipefail
-          while read -r tag; do
-            docker tag "${IMAGE}:build" "${IMAGE}:${tag}"
-          done < tags.txt
-
-      - name: Push image variants
-        shell: bash
-        run: |
-          set -euo pipefail
-          while read -r tag; do
-            docker push "${IMAGE}:${tag}"
-          done < tags.txt
+      - name: Build & push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./openscad-part-maker   # same as {{PROJECT_DIR}}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.full_tags }}
+          # optional but nice:
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
