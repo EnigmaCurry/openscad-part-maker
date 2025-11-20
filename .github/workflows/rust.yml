@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ "master" ]
 
+# Default token is read-only for all jobs unless overridden.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   PROJECT_DIR: openscad-part-maker
@@ -13,6 +17,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # stays read-only (optional explicitness)
+    permissions:
+      contents: read
 
     steps:
       - name: Checkout code
@@ -77,15 +84,12 @@ jobs:
         id: project_info
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          # Get cargo project name
           project_name=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].name')
           echo "PROJECT_NAME=$project_name" >> $GITHUB_ENV
 
-          # Get current branch name
           branch_name=${GITHUB_REF##*/}
           echo "BRANCH_NAME=$branch_name" >> $GITHUB_ENV
 
-          # Get commit SHA and URL
           commit_sha=$GITHUB_SHA
           commit_url="https://github.com/${{ github.repository }}/commit/${commit_sha}"
           echo "COMMIT_SHA=$commit_sha" >> $GITHUB_ENV
@@ -98,16 +102,13 @@ jobs:
           branch_name="$BRANCH_NAME"
           commit_sha="$COMMIT_SHA"
           commit_url="$COMMIT_URL"
-          # Insert meta information at the end of the <body> in the HTML file
           sed -i "/<\/body>/i <div style=\"position:fixed;bottom:10px;left:10px;font-size:12px;color:#666\">Project: ${project_name} | Branch: ${branch_name} | <a href=\"${commit_url}\">Commit: ${commit_sha}</a></div>" ./target/llvm-cov/html/index.html
 
-      - name: Publish coverage report to github pages
-        if: github.ref == 'refs/heads/master'
-        uses: peaceiris/actions-gh-pages@v4
+      # Upload the coverage HTML as a Pages artifact
+      - name: Upload coverage site artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: openscad-part-maker/target/llvm-cov/html
-          destination_dir: coverage/master
+          path: ${{ env.PROJECT_DIR }}/target/llvm-cov/html
 
       # Remove project-specific artifacts from target, to not invalidate the cache:
       - name: Remove project-specific artifacts
@@ -115,3 +116,23 @@ jobs:
         run: |
           PROJECT_NAME=$(grep '^name' Cargo.toml | sed 's/name = "\(.*\)"/\1/')
           find target/ | grep "${PROJECT_NAME}" | xargs -iXX rm -rf XX
+
+  deploy-coverage:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
+    # Only this job can deploy to Pages. No repo write perms.
+    permissions:
+      pages: write
+      id-token: write
+      contents: read
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
