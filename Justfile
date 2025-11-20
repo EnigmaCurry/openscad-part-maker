@@ -1,9 +1,9 @@
 set export
 
 current_dir := `pwd`
-RUST_LOG := "debug"
-RUST_BACKTRACE := "1"
-GIT_REMOTE := "origin"
+RUST_LOG        := env_var_or_default("RUST_LOG", "debug")
+RUST_BACKTRACE := env_var_or_default("RUST_BACKTRACE", "1")
+GIT_REMOTE      := env_var_or_default("GIT_REMOTE", "origin")
 
 FUNCS_SCRIPT := "./_scripts/funcs.sh"
 PROJECT_DIR  := "openscad-part-maker"
@@ -12,10 +12,9 @@ CARGO_TOML   := MANIFEST
 CARGO_LOCK   := PROJECT_DIR / "Cargo.lock"
 TARGET_DIR   := PROJECT_DIR / "target"
 
-DOCKER := "docker"
-#DOCKER := "podman"
-DOCKER_IMAGE := "openscad-part-maker"
-INPUT_SCAD := "template/tile.scad"
+DOCKER       := env_var_or_default("DOCKER", "docker")
+DOCKER_IMAGE := env_var_or_default("DOCKER_IMAGE", "openscad-part-maker")
+INPUT_SCAD   := env_var_or_default("INPUT_SCAD", "template/tile.scad")
 
 # print help for Just targets
 help:
