@@ -1,34 +1,60 @@
-# rust-cli-template
+# openscad-part-maker
 
-This is my Rust template for new CLI apps.
+This is a self-service web frontend for making custom 3d printed parts
+via an OpenSCAD template. It presents a web form for a user to upload
+SVG assets and to specify custom parameters. It has an API for
+processing these inputs and downloading to the user's browser the
+resulting .STL file.
 
-## Features
+## Install
 
- * [Just](https://github.com/casey/just) enabled project build targets.
- * [Clap](https://docs.rs/clap/latest/clap/) CLI argument parser.
- * Bash / Fish / Zsh shell (tab)
-   [completion](https://docs.rs/clap_complete/latest/clap_complete/).
- * GitHub actions for tests and releases.
- * Test coverage report published to GitHub pages.
- * Publishing to crates.io.
+[Download the latest release for your
+platform.](https://github.com/enigmacurry/openscad-part-maker/releases)
 
-## Use this template
+### Tab completion
 
- * [Create a new repository using this template](https://github.com/new?template_name=rust-cli-template&template_owner=EnigmaCurry).
- * The `Repository name` you choose will also be used as your app name.
- * Go to the repository `Settings` page:
-   * Find `Actions`.
-   * Find `General`.
-   * Find `Workflow Permissions`.
-   * Set `Read and Write permissions`.
-   * Click `Save`.
- * Clone your new repository to your workstation.
- 
-## Render the template
+To install tab completion support, put this in your `~/.bashrc` (assuming you use Bash):
 
 ```
-./setup.sh
+### Bash completion for openscad-part-maker (Put this in ~/.bashrc)
+source <(openscad-part-maker completions bash)
 ```
- 
-This will render the template into the project root and then
-self-destruct this README.md and the template.
+
+If you don't like to type out the full name `openscad-part-maker`, you can make
+a shorter alias (`h`), as well as enable tab completion for the alias
+(`h`):
+
+```
+### Alias openscad-part-maker as h (Put this in ~/.bashrc):
+alias h=openscad-part-maker
+complete -F _openscad-part-maker -o bashdefault -o default h
+```
+
+Completion for Zsh and/or Fish has also been implemented, but the
+author has not tested this:
+
+```
+### Zsh completion for openscad-part-maker (Put this in ~/.zshrc):
+autoload -U compinit; compinit; source <(openscad-part-maker completions zsh)
+
+### Fish completion for openscad-part-maker (Put this in ~/.config/fish/config.fish):
+openscad-part-maker completions fish | source
+```
+
+## Usage
+
+```
+$ openscad-part-maker
+
+Usage: openscad-part-maker [OPTIONS] [COMMAND]
+
+Commands:
+
+Options:
+  -h, --help                  Print help
+  -V, --version               Print version
+```
+
+## Development
+
+See [DEVELOPMENT.md](DEVELOPMENT.md)
