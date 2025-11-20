@@ -7,13 +7,10 @@ on:
 
 jobs:
   build:
+jobs:
+  build:
     name: Build - ${{ matrix.platform.release_for }}
     runs-on: ${{ matrix.platform.os }}
-
-    # Make all shell steps run inside the subdir
-    defaults:
-      run:
-        working-directory: openscad-part-maker
 
     steps:
       - name: Checkout
@@ -21,14 +18,14 @@ jobs:
 
       - name: Update Rust stable
         run: rustup toolchain install stable
+        working-directory: openscad-part-maker
 
-      # Preprocess Cargo.lock to ignore version fields for cache id hashing purposes:
       - name: Prepare Cargo.lock for caching (ignore openscad-part-maker version)
+        working-directory: openscad-part-maker
         run: |
           PROJECT_NAME=$(grep '^name' Cargo.toml | sed 's/name = "\(.*\)"/\1/')
           awk '/\[\[package\]\]/{p=0} /name = "'"${PROJECT_NAME}"'"/{p=1} p && /version = /{next} 1' Cargo.lock > Cargo.lock.no-version
 
-      # Cache cargo registry (source code artifacts only):
       - name: Cache cargo registry
         uses: actions/cache@v3
         with:
@@ -47,17 +44,16 @@ jobs:
       - name: Get the tag of current release
         id: get_version
         run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> ${GITHUB_OUTPUT}
+        working-directory: openscad-part-maker
 
       - name: Verify package version is equal to tag version
         if: ${{ steps.cargo_version.outputs.value != steps.get_version.outputs.VERSION }}
+        working-directory: openscad-part-maker
         run: |
           echo "${{ steps.cargo_version.outputs.value }}"
           echo "${{ steps.get_version.outputs.VERSION }}"
           exit 1
 
-      # NOTE: defaults.run doesn't affect `uses:` steps.
-      # houseabsolute/actions-rust-cross supports a working-directory input.
-      # If your version doesn't, see fallback note below.
       - name: Build binary
         uses: houseabsolute/actions-rust-cross@v0
         with:
@@ -68,15 +64,16 @@ jobs:
           working-directory: openscad-part-maker
 
       - name: move binary path
+        working-directory: openscad-part-maker
         run: mv target/${{ matrix.platform.target }}/release/${{ matrix.platform.bin }} .
 
-      # Put tarball in repo root so upload-artifact (a uses step) can find it easily
       - name: Package as archive
         shell: bash
+        working-directory: openscad-part-maker
         run: |
           tar czvf ../${{ matrix.platform.bin }}-v${{ steps.cargo_version.outputs.value }}-${{ matrix.platform.name }}.tar.gz \
                 ${{ matrix.platform.bin }}
-        if: startsWith( github.ref, 'refs/tags/v' )
+        if: startsWith(github.ref, 'refs/tags/v')
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -131,18 +128,16 @@ jobs:
     needs: release
     runs-on: ubuntu-latest
 
-    defaults:
-      run:
-        working-directory: openscad-part-maker
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Update Rust stable
         run: rustup toolchain install stable
+        working-directory: openscad-part-maker
 
       - name: Prepare Cargo.lock for caching (ignore openscad-part-maker version)
+        working-directory: openscad-part-maker
         run: |
           PROJECT_NAME=$(grep '^name' Cargo.toml | sed 's/name = "\(.*\)"/\1/')
           awk '/\[\[package\]\]/{p=0} /name = "'"${PROJECT_NAME}"'"/{p=1} p && /version = /{next} 1' Cargo.lock > Cargo.lock.no-version
@@ -157,8 +152,10 @@ jobs:
 
       - name: Check crate is ready for publishing
         run: cargo package
+        working-directory: openscad-part-maker
 
       - name: Publish to crates.io
         env:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
         run: cargo publish --token $CARGO_REGISTRY_TOKEN
+        working-directory: openscad-part-maker
