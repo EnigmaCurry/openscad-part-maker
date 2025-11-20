@@ -9,7 +9,6 @@ resulting .STL file.
 ## Requirements
 
  - Docker server and workstation to run docker commands from.
- - Rust and Cargo (get from [https://rustup.rs](https://rustup.rs/))
  - Just (get from
    [https://just.systems](https://just.systems/man/en/packages.html))
 
