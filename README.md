@@ -36,15 +36,26 @@ host (e.g., port `3000`). Please note that this does not use any TLS,
 so this should only be used privately:
 
 ```
-## NB: you can use docker or podman for this.
+## Set the Docker image to pull:
+IMAGE=ghcr.io/enigmacurry/openscad-part-maker:latest
+
+## Set the TCP port number to use:
+PORT=3000
+
+## Set the input SCAD file container path:
+INPUT_SCAD=/template/tile.scad
+
+## NB: you can use docker or podman for this:
 podman run -d \
   --name openscad-part-maker \
-  -p 3000:3000 \
-  ${IMAGE:-ghcr.io/enigmacurry/openscad-part-maker:latest} \
+  -p ${PORT}:${PORT} \
+  ${IMAGE} \
   serve \
-  --listen 0.0.0.0:3000 \
-  --input-scad ${INPUT_SCAD:-/template/tile.scad}
+  --listen 0.0.0.0:${PORT} \
+  --input-scad ${INPUT_SCAD}
 ```
+
+Next, open your web browser to https://localhost:3000
 
 ### Install for public use with Docker (with TLS)
 
@@ -56,8 +67,14 @@ to add the proper labels so Traefik knows how to route to this
 container:
 
 ```
-## Set the domain name you want Traefik to route to this container
+## Set the domain name you want Traefik to route to this container:
 TRAEFIK_HOST=openscad-part-maker.example.com
+
+## Set the Docker image to pull:
+IMAGE=ghcr.io/enigmacurry/openscad-part-maker:latest
+
+## Set the input SCAD file container path:
+INPUT_SCAD=/template/tile.scad
 
 docker run -d \
   --name openscad-part-maker \
@@ -66,18 +83,25 @@ docker run -d \
   -l traefik.http.routers.openscad-part-maker.entrypoints=websecure \
   -l traefik.http.routers.openscad-part-maker.tls=true \
   -l traefik.http.services.openscad-part-maker.loadbalancer.server.port=3000 \
-  ${IMAGE:-ghcr.io/enigmacurry/openscad-part-maker:latest} \
+  ${IMAGE} \
   serve \
   --listen 0.0.0.0:3000 \
-  --input-scad ${INPUT_SCAD:-/template/tile.scad}
+  --input-scad ${INPUT_SCAD}
 ```
 
+Next, open your web browser to
+https://openscad-part-maker.example.com:3000 (replace the domain with
+the one you actually used above)
 
 ### Install the native binary (without Docker or Podman)
 
 See
 [Releases](https://github.com/EnigmaCurry/openscad-part-maker/releases)
 and download the package you want to install.
+
+Extract the package, and then run `./openscad-part-maker serve`.
+
+Next, open your web browser to http://localhost:3000
 
 ## Development
 
