@@ -1,0 +1,78 @@
+name: Docker Image
+
+on:
+  push:
+    branches: [ "master" ]
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    # Needed to push to ghcr.io with GITHUB_TOKEN
+    permissions:
+      contents: read
+      packages: write
+
+    env:
+      DOCKER: docker
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute image name + tags
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ghcr image name must be lowercase
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            VERSION="${GITHUB_REF_NAME}"
+            printf "%s\n" "$VERSION" "latest" > tags.txt
+          else
+            SHORT_SHA="${GITHUB_SHA::7}"
+            printf "%s\n" "latest" "sha-$SHORT_SHA" > tags.txt
+          fi
+
+          echo "Tags to push:"
+          cat tags.txt
+
+      - name: Build docker image (just)
+        env:
+          DOCKER_IMAGE: ${{ env.IMAGE }}:build
+        run: just build-docker
+
+      - name: Tag image variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          while read -r tag; do
+            docker tag "${IMAGE}:build" "${IMAGE}:${tag}"
+          done < tags.txt
+
+      - name: Push image variants
+        shell: bash
+        run: |
+          set -euo pipefail
+          while read -r tag; do
+            docker push "${IMAGE}:${tag}"
+          done < tags.txt
