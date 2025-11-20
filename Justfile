@@ -5,6 +5,13 @@ RUST_LOG := "debug"
 RUST_BACKTRACE := "1"
 GIT_REMOTE := "origin"
 
+FUNCS_SCRIPT := "./_scripts/funcs.sh"
+PROJECT_DIR  := "openscad-part-maker"
+MANIFEST     := PROJECT_DIR / "Cargo.toml"
+CARGO_TOML   := MANIFEST
+CARGO_LOCK   := PROJECT_DIR / "Cargo.lock"
+TARGET_DIR   := PROJECT_DIR / "target"
+
 DOCKER := "docker"
 #DOCKER := "podman"
 DOCKER_IMAGE := "openscad-part-maker"
@@ -38,52 +45,52 @@ bin-deps:
 # Build and run binary + args
 [no-cd]
 run *args:
-    cargo run --manifest-path "${current_dir}/Cargo.toml" -- {{args}}
+    cargo run --manifest-path "{{MANIFEST}}" -- {{args}}
 
 # Build + args
 build *args:
-    RUSTFLAGS="-D warnings" cargo build {{args}}
+    RUSTFLAGS="-D warnings" cargo build --manifest-path "{{MANIFEST}}" {{args}}
 
 # Build continuously on file change
 build-watch *args:
-    cargo watch -s "clear && cargo build {{args}}"
+    cargo watch -s "clear && cargo build --manifest-path {{MANIFEST}} {{args}}"
 
 # Run tests
 test *args:
-    cargo nextest run {{args}}
+    cargo nextest run --manifest-path "{{MANIFEST}}" {{args}}
 
 # Run tests continuously on file change
 test-watch *args:
-    cargo watch -s "clear && cargo nextest run {{args}}"
+    cargo watch -s "clear && cargo nextest run --manifest-path {{MANIFEST}} {{args}}"
 
 # Run tests with verbose logging
 test-verbose *args:
-    RUST_TEST_THREADS=1 cargo nextest run --nocapture {{args}}
+    RUST_TEST_THREADS=1 cargo nextest run --manifest-path "{{MANIFEST}}" --nocapture {{args}}
 
 # Run tests continuously with verbose logging
 test-watch-verbose *args:
-    RUST_TEST_THREADS=1 cargo watch -s "clear && cargo nextest run --nocapture -- {{args}}"
+    RUST_TEST_THREADS=1 cargo watch -s "clear && cargo nextest run --manifest-path {{MANIFEST}} --nocapture -- {{args}}"
 
 # Build coverage report
 test-coverage *args: clean
-    cargo llvm-cov nextest {{args}}  && \
-    cargo llvm-cov {{args}} report --html
+    cargo llvm-cov nextest --manifest-path "{{MANIFEST}}" {{args}} && \
+    cargo llvm-cov --manifest-path "{{MANIFEST}}" {{args}} report --html
 
 # Continuously build coverage report and serve HTTP report
 test-coverage-watch *args:
-    cargo watch -s "clear && just test-coverage {{args}} && cd target/llvm-cov/html && python -m http.server"
+    cargo watch -s "clear && just test-coverage {{args}} && cd {{TARGET_DIR}}/llvm-cov/html && python -m http.server"
 
 # Run Clippy to report and fix lints
 clippy *args:
-    RUSTFLAGS="-D warnings" cargo clippy {{args}} --color=always 2>&1 --tests | less -R
+    RUSTFLAGS="-D warnings" cargo clippy --manifest-path "{{MANIFEST}}" {{args}} --color=always 2>&1 --tests | less -R
 
 # Bump release version and create PR branch
 bump-version:
     @if [ -n "$(git status --porcelain)" ]; then echo "## Git status is not clean. Commit your changes before bumping version."; exit 1; fi
     @if [ "$(git symbolic-ref --short HEAD)" != "master" ]; then echo "## You may only bump the version from the master branch."; exit 1; fi
-    source ./funcs.sh; \
+    source ${FUNCS_SCRIPT}; \
     set -eo pipefail; \
-    CURRENT_VERSION=$(grep -Po '^version = \K.*' Cargo.toml | sed -e 's/"//g' | head -1); \
+    CURRENT_VERSION=$(grep -Po '^version = \K.*' {{CARGO_TOML}} | sed -e 's/"//g' | head -1); \
     VERSION=$(git cliff --bumped-version | sed 's/^v//'); \
     echo; \
     (if git rev-parse v${VERSION} 2>/dev/null; then \
@@ -92,13 +99,13 @@ bump-version:
       exit 1; \
      fi \
     ); \
-    echo "## Current $(grep '^version =' Cargo.toml | head -1)"; \
+    echo "## Current $(grep '^version =' {{CARGO_TOML}} | head -1)"; \
     confirm yes "New version would be \"v${VERSION}\"" " -- Proceed?"; \
     git checkout -B release-v${VERSION}; \
-    cargo set-version ${VERSION}; \
+    cargo set-version --manifest-path "{{MANIFEST}}" ${VERSION}; \
     sed -i "s/^VERSION=v.*$/VERSION=v${VERSION}/" README.md; \
-    cargo update; \
-    git add Cargo.toml Cargo.lock README.md; \
+    cargo update --manifest-path "{{MANIFEST}}"; \
+    git add {{CARGO_TOML}} {{CARGO_LOCK}} README.md; \
     git commit -m "release: v${VERSION}"; \
     echo "Bumped version: v${VERSION}"; \
     echo "Created new branch: release-v${VERSION}"; \
@@ -111,26 +118,26 @@ release:
     git remote update;
     @if [[ "$(git status -uno)" != *"Your branch is up to date"* ]]; then echo "## Git branch is not in sync with git remote ${GIT_REMOTE}."; exit 1; fi;
     @set -eo pipefail; \
-    source ./funcs.sh; \
-    CURRENT_VERSION=$(grep -Po '^version = \K.*' Cargo.toml | sed -e 's/"//g' | head -1); \
+    source ${FUNCS_SCRIPT}; \
+    CURRENT_VERSION=$(grep -Po '^version = \K.*' {{CARGO_TOML}} | sed -e 's/"//g' | head -1); \
     if git rev-parse "v${CURRENT_VERSION}" >/dev/null 2>&1; then echo "Tag already exists: v${CURRENT_VERSION}"; exit 1; fi; \
     if (git ls-remote --tags "${GIT_REMOTE}" | grep -q "refs/tags/v${CURRENT_VERSION}" >/dev/null 2>&1); then echo "Tag already exists on remote ${GIT_REMOTE}: v${CURRENT_VERSION}"; exit 1; fi; \
-    cargo audit | less; \
+    cargo audit --manifest-path "{{MANIFEST}}" | less; \
     confirm yes "New tag will be \"v${CURRENT_VERSION}\"" " -- Proceed?"; \
     git tag "v${CURRENT_VERSION}"; \
     git push "${GIT_REMOTE}" tag "v${CURRENT_VERSION}";
 
 # Clean all artifacts
 clean *args: clean-profile
-    cargo clean {{args}}
+    cargo clean --manifest-path "{{MANIFEST}}" {{args}}
 
 # Clean profile artifacts only
 clean-profile:
-    rm -rf *.profraw *.profdata
+    rm -rf {{PROJECT_DIR}}/*.profraw {{PROJECT_DIR}}/*.profdata
 
 # Build docker image
 build-docker:
-    ${DOCKER} build . -t ${DOCKER_IMAGE}
+    ${DOCKER} build {{PROJECT_DIR}} -t ${DOCKER_IMAGE}
 
 serve: build-docker
     ${DOCKER} run --rm -it -p 3000:3000 ${DOCKER_IMAGE} serve --listen 0.0.0.0:3000 --input-scad ${INPUT_SCAD}

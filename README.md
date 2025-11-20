@@ -22,7 +22,7 @@ Build the Docker image `openscad-part-maker`:
 just build-docker
 ```
 
-Start the HTTP service for development:
+Start the HTTP service for development (builds Docker image implicitly):
 
 ```
 just serve
