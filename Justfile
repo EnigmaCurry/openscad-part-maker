@@ -122,7 +122,7 @@ release:
     CURRENT_VERSION=$(grep -Po '^version = \K.*' {{CARGO_TOML}} | sed -e 's/"//g' | head -1); \
     if git rev-parse "v${CURRENT_VERSION}" >/dev/null 2>&1; then echo "Tag already exists: v${CURRENT_VERSION}"; exit 1; fi; \
     if (git ls-remote --tags "${GIT_REMOTE}" | grep -q "refs/tags/v${CURRENT_VERSION}" >/dev/null 2>&1); then echo "Tag already exists on remote ${GIT_REMOTE}: v${CURRENT_VERSION}"; exit 1; fi; \
-    cargo audit --manifest-path "{{MANIFEST}}" | less; \
+    cd {{PROJECT_DIR}} && cargo audit | less; \
     confirm yes "New tag will be \"v${CURRENT_VERSION}\"" " -- Proceed?"; \
     git tag "v${CURRENT_VERSION}"; \
     git push "${GIT_REMOTE}" tag "v${CURRENT_VERSION}";
