@@ -10,8 +10,6 @@ on:
 
 jobs:
   build:
-jobs:
-  build:
     name: Build - ${{ matrix.platform.release_for }}
     runs-on: ${{ matrix.platform.os }}
 
