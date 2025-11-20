@@ -55,3 +55,32 @@ pub fn app() -> Command {
                 ),
         )
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::error::ErrorKind;
+
+    #[test]
+    fn help_flag_triggers_display_help() {
+        let res = app().try_get_matches_from(["openscad-part-maker", "--help"]);
+        assert!(res.is_err(), "expected clap to return DisplayHelp error");
+        let err = res.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::DisplayHelp);
+
+        // Sanity checks on the help text:
+        let help = err.to_string();
+        assert!(help.contains("openscad-part-maker"));
+        assert!(help.contains("Run the HTTP API server"));
+        assert!(help.contains("completions"));
+    }
+
+    #[test]
+    fn serve_requires_input_scad() {
+        let res = app().try_get_matches_from(["openscad-part-maker", "serve"]);
+        assert!(res.is_err());
+        let err = res.unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::MissingRequiredArgument);
+        assert!(err.to_string().contains("--input-scad"));
+    }
+}
