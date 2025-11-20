@@ -114,6 +114,10 @@ jobs:
     name: Release - ${{ matrix.platform.release_for }}
     needs: build
     runs-on: ubuntu-latest
+
+    permissions:
+      contents: write  # allow creating the GitHub Release + uploading assets
+
     steps:
       - uses: actions/download-artifact@v4
 
@@ -124,39 +128,39 @@ jobs:
           files: |
             **/openscad-part-maker-v*.tar.gz
 
-  publish:
-    name: Publish crate
-    needs: release
-    runs-on: ubuntu-latest
+  # publish:
+  #   name: Publish crate
+  #   needs: release
+  #   runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
 
-      - name: Update Rust stable
-        run: rustup toolchain install stable
-        working-directory: openscad-part-maker
+  #     - name: Update Rust stable
+  #       run: rustup toolchain install stable
+  #       working-directory: openscad-part-maker
 
-      - name: Prepare Cargo.lock for caching (ignore openscad-part-maker version)
-        working-directory: openscad-part-maker
-        run: |
-          PROJECT_NAME=$(grep '^name' Cargo.toml | sed 's/name = "\(.*\)"/\1/')
-          awk '/\[\[package\]\]/{p=0} /name = "'"${PROJECT_NAME}"'"/{p=1} p && /version = /{next} 1' Cargo.lock > Cargo.lock.no-version
+  #     - name: Prepare Cargo.lock for caching (ignore openscad-part-maker version)
+  #       working-directory: openscad-part-maker
+  #       run: |
+  #         PROJECT_NAME=$(grep '^name' Cargo.toml | sed 's/name = "\(.*\)"/\1/')
+  #         awk '/\[\[package\]\]/{p=0} /name = "'"${PROJECT_NAME}"'"/{p=1} p && /version = /{next} 1' Cargo.lock > Cargo.lock.no-version
 
-      - name: Cache cargo registry
-        uses: actions/cache@v3
-        with:
-          path: ~/.cargo/registry
-          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('openscad-part-maker/Cargo.lock.no-version') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-registry-
+  #     - name: Cache cargo registry
+  #       uses: actions/cache@v3
+  #       with:
+  #         path: ~/.cargo/registry
+  #         key: ${{ runner.os }}-cargo-registry-${{ hashFiles('openscad-part-maker/Cargo.lock.no-version') }}
+  #         restore-keys: |
+  #           ${{ runner.os }}-cargo-registry-
 
-      - name: Check crate is ready for publishing
-        run: cargo package
-        working-directory: openscad-part-maker
+  #     - name: Check crate is ready for publishing
+  #       run: cargo package
+  #       working-directory: openscad-part-maker
 
-      - name: Publish to crates.io
-        env:
-          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
-        run: cargo publish --token $CARGO_REGISTRY_TOKEN
-        working-directory: openscad-part-maker
+  #     - name: Publish to crates.io
+  #       env:
+  #         CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+  #       run: cargo publish --token $CARGO_REGISTRY_TOKEN
+  #       working-directory: openscad-part-maker
