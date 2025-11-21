@@ -152,7 +152,7 @@ jobs:
         run: |
           set -euo pipefail
           rm -rf dist
-          mkdir -p dist/linux-amd64 dist/linux-arm64
+          mkdir -p openscad-part-maker/dist/linux-amd64 openscad-part-maker/dist/linux-arm64
 
           # Find and unpack the linux tarballs
           for f in artifacts/**/openscad-part-maker-v*-Linux-x86_64.tar.gz; do
