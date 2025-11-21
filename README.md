@@ -25,10 +25,6 @@ file.
 
 You can install several ways, pick the way you like the best:
 
- - with Podman.
- - with Docker (plus Traefik).
- - with native binary.
-
 ### Install for private use (without TLS)
 
 You may install the container by itself and open up the port on the
