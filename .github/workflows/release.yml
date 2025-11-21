@@ -128,6 +128,79 @@ jobs:
           files: |
             **/openscad-part-maker-v*.tar.gz
 
+  docker:
+    name: Docker image (linux/amd64, linux/arm64)
+    needs: release
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write   # needed for ghcr push
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pull down all the tar.gz artifacts your build job uploaded
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract linux binaries into dist/
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          mkdir -p dist/linux-amd64 dist/linux-arm64
+
+          # Find and unpack the linux tarballs
+          for f in artifacts/**/openscad-part-maker-v*-Linux-x86_64.tar.gz; do
+            tar -xzf "$f" -C dist/linux-amd64
+          done
+
+          for f in artifacts/**/openscad-part-maker-v*-Linux-aarch64.tar.gz; do
+            tar -xzf "$f" -C dist/linux-arm64
+          done
+
+          # Optional sanity check
+          ls -l dist/linux-amd64 dist/linux-arm64
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}},prefix=v
+            type=raw,value=latest
+
+      - name: Build and push multi-arch image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+
   # publish:
   #   name: Publish crate
   #   needs: release
