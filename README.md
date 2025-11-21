@@ -8,14 +8,6 @@ assets and to specify custom parameters. It has an API for processing
 these inputs and downloading to the user's browser the resulting .STL
 file.
 
-## TODO
-
- - This application is currently customized for the
-   [template/tile.scad](template/tile.scad) file. Using other CAD
-   files will require adjustment to the HTML form and Rust structs. In
-   the future, the application could be made more adatable by parsing
-   the options form the .scad file directly.
-
 ## Requirements
 
  - The recommended installation method is with Docker or Podman:
