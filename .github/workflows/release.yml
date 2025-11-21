@@ -156,15 +156,15 @@ jobs:
 
           # Find and unpack the linux tarballs
           for f in artifacts/**/openscad-part-maker-v*-Linux-x86_64.tar.gz; do
-            tar -xzf "$f" -C dist/linux-amd64
+            tar -xzf "$f" -C openscad-part-maker/dist/linux-amd64
           done
 
           for f in artifacts/**/openscad-part-maker-v*-Linux-aarch64.tar.gz; do
-            tar -xzf "$f" -C dist/linux-arm64
+            tar -xzf "$f" -C openscad-part-maker/dist/linux-arm64
           done
 
           # Optional sanity check
-          ls -l dist/linux-amd64 dist/linux-arm64
+          ls -l openscad-part-maker/dist/linux-amd64 openscad-part-maker/dist/linux-arm64
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
