@@ -21,6 +21,7 @@ pub struct ParamSpec {
     pub ty: ParamType,
     #[allow(dead_code)]
     pub is_user_param: bool, // whether we consider it a real user-facing param
+    #[allow(dead_code)]
     pub comment: String,
     pub options: Vec<String>,
 }
@@ -86,14 +87,6 @@ impl ScadParamTemplate {
             specs: self.specs.clone(),
             values: self.defaults.clone(),
         }
-    }
-
-    /// list of user-facing names to build the HTML form with
-    pub fn user_param_names(&self) -> impl Iterator<Item = &str> {
-        self.specs
-            .values()
-            .filter(|s| s.is_user_param)
-            .map(|s| s.name.as_str())
     }
 }
 
