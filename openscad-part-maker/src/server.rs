@@ -500,77 +500,17 @@ async fn render_svg_to_stl(
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    // Build openscad command with all -D params
+    let args = build_openscad_args(
+        fs,
+        fa,
+        fn_,
+        &lib_params,
+        &svg_path,
+        &stl_path,
+        &state.input_scad_path,
+    );
     let mut cmd = Command::new("openscad");
-    cmd.arg("--render")
-        .arg("-D")
-        .arg(format!("fs={fs}"))
-        .arg("-D")
-        .arg(format!("fa={fa}"))
-        .arg("-D")
-        .arg(format!("fn={fn_}"))
-        // lib.scad params:
-        .arg("-D")
-        .arg(format!("NAME=\"{}\"", lib_params.name))
-        .arg("-D")
-        .arg(format!("MODE=\"{}\"", lib_params.mode))
-        .arg("-D")
-        .arg(format!("SHAPE=\"{}\"", lib_params.shape))
-        .arg("-D")
-        .arg(format!("SHAPE_ROT={}", lib_params.shape_rot))
-        .arg("-D")
-        .arg(format!("COASTER_D={}", lib_params.coaster_d))
-        .arg("-D")
-        .arg(format!("BASE_H={}", lib_params.base_h))
-        .arg("-D")
-        .arg(format!("INLAY_DH={}", lib_params.inlay_dh))
-        .arg("-D")
-        .arg(format!("MARGIN={}", lib_params.margin))
-        .arg("-D")
-        .arg(format!("CLEARANCE={}", lib_params.clearance))
-        .arg("-D")
-        .arg(format!("SEG={}", lib_params.seg))
-        .arg("-D")
-        .arg(format!(
-            "INTERLOCK={}",
-            if lib_params.interlock {
-                "true"
-            } else {
-                "false"
-            }
-        ))
-        .arg("-D")
-        .arg(format!("EDGE_CLEAR={}", lib_params.edge_clear))
-        .arg("-D")
-        .arg(format!("MAG_D={}", lib_params.mag_d))
-        .arg("-D")
-        .arg(format!("MAG_H={}", lib_params.mag_h))
-        .arg("-D")
-        .arg(format!("MAG_CLEAR={}", lib_params.mag_clear))
-        .arg("-D")
-        .arg(format!("BOTTOM_SKIN={}", lib_params.bottom_skin))
-        .arg("-D")
-        .arg(format!("BOSS_CLEARANCE={}", lib_params.boss_clearance))
-        .arg("-D")
-        .arg(format!("BOSS_H={}", lib_params.boss_h))
-        .arg("-D")
-        .arg(format!("SPINNER_D={}", lib_params.spinner_d))
-        .arg("-D")
-        .arg(format!(
-            "USE_SPINNER={}",
-            if lib_params.use_spinner {
-                "true"
-            } else {
-                "false"
-            }
-        ))
-        // SVG path: we override SVG_PATH in lib.scad
-        .arg("-D")
-        .arg(format!("SVG_PATH=\"{}\"", svg_path.display()))
-        // output and main .scad file
-        .arg("-o")
-        .arg(&stl_path)
-        .arg(&state.input_scad_path);
+    cmd.args(args);
 
     info!("Running openscad to generate STL...");
     let status = cmd.status().await.map_err(|err| {
@@ -592,19 +532,7 @@ async fn render_svg_to_stl(
     let mut headers = HeaderMap::new();
 
     // Whatever you’re using as the base name:
-    let raw_name = lib_params.name.clone();
-
-    // Optional: sanitize to something header-safe / filesystem-safe
-    let safe_name: String = raw_name
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
+    let safe_name = sanitize_filename_component(&lib_params.name);
 
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("model/stl"));
 
@@ -649,5 +577,263 @@ async fn shutdown_signal() {
         _ = terminate => {
             info!("SIGTERM received, shutting down…");
         }
+    }
+}
+
+/// Replace any non header-safe / filesystem-safe characters with `_`.
+/// Keeps only ASCII alphanumerics, `-`, and `_`.
+fn sanitize_filename_component(raw: &str) -> String {
+    raw.chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect()
+}
+
+/// Build the OpenSCAD command-line args as a pure Vec<String> so tests can
+/// validate ordering and values without spawning OpenSCAD.
+fn build_openscad_args(
+    fs: f32,
+    fa: f32,
+    fn_: i32,
+    lib_params: &LibParams,
+    svg_path: &PathBuf,
+    stl_path: &PathBuf,
+    input_scad_path: &PathBuf,
+) -> Vec<String> {
+    let mut args = Vec::new();
+
+    args.push("--render".into());
+    args.push("-D".into());
+    args.push(format!("fs={fs}"));
+    args.push("-D".into());
+    args.push(format!("fa={fa}"));
+    args.push("-D".into());
+    args.push(format!("fn={fn_}"));
+
+    // lib.scad params:
+    args.push("-D".into());
+    args.push(format!("NAME=\"{}\"", lib_params.name));
+    args.push("-D".into());
+    args.push(format!("MODE=\"{}\"", lib_params.mode));
+    args.push("-D".into());
+    args.push(format!("SHAPE=\"{}\"", lib_params.shape));
+    args.push("-D".into());
+    args.push(format!("SHAPE_ROT={}", lib_params.shape_rot));
+    args.push("-D".into());
+    args.push(format!("COASTER_D={}", lib_params.coaster_d));
+    args.push("-D".into());
+    args.push(format!("BASE_H={}", lib_params.base_h));
+    args.push("-D".into());
+    args.push(format!("INLAY_DH={}", lib_params.inlay_dh));
+    args.push("-D".into());
+    args.push(format!("MARGIN={}", lib_params.margin));
+    args.push("-D".into());
+    args.push(format!("CLEARANCE={}", lib_params.clearance));
+    args.push("-D".into());
+    args.push(format!("SEG={}", lib_params.seg));
+    args.push("-D".into());
+    args.push(format!(
+        "INTERLOCK={}",
+        if lib_params.interlock {
+            "true"
+        } else {
+            "false"
+        }
+    ));
+    args.push("-D".into());
+    args.push(format!("EDGE_CLEAR={}", lib_params.edge_clear));
+    args.push("-D".into());
+    args.push(format!("MAG_D={}", lib_params.mag_d));
+    args.push("-D".into());
+    args.push(format!("MAG_H={}", lib_params.mag_h));
+    args.push("-D".into());
+    args.push(format!("MAG_CLEAR={}", lib_params.mag_clear));
+    args.push("-D".into());
+    args.push(format!("BOTTOM_SKIN={}", lib_params.bottom_skin));
+    args.push("-D".into());
+    args.push(format!("BOSS_CLEARANCE={}", lib_params.boss_clearance));
+    args.push("-D".into());
+    args.push(format!("BOSS_H={}", lib_params.boss_h));
+    args.push("-D".into());
+    args.push(format!("SPINNER_D={}", lib_params.spinner_d));
+    args.push("-D".into());
+    args.push(format!(
+        "USE_SPINNER={}",
+        if lib_params.use_spinner {
+            "true"
+        } else {
+            "false"
+        }
+    ));
+
+    // SVG path override:
+    args.push("-D".into());
+    args.push(format!("SVG_PATH=\"{}\"", svg_path.display()));
+
+    // output + main .scad:
+    args.push("-o".into());
+    args.push(stl_path.to_string_lossy().to_string());
+    args.push(input_scad_path.to_string_lossy().to_string());
+
+    args
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_bool_accepts_truthy_variants() {
+        for v in ["1", "true", "TRUE", "on", "On", "yes", "YeS"] {
+            assert_eq!(parse_bool(v), Ok(true), "variant {v} should be true");
+        }
+    }
+
+    #[test]
+    fn parse_bool_accepts_falsy_variants() {
+        for v in ["0", "false", "FALSE", "off", "Off", "no", "No"] {
+            assert_eq!(parse_bool(v), Ok(false), "variant {v} should be false");
+        }
+    }
+
+    #[test]
+    fn parse_bool_rejects_unknown_strings() {
+        for v in ["", "maybe", "truth", "2", "yep", "nah"] {
+            assert!(parse_bool(v).is_err(), "variant {v} should be Err");
+        }
+    }
+
+    #[test]
+    fn set_from_field_empty_text_is_noop() {
+        let mut p = LibParams::default();
+        let orig = p.clone();
+        p.set_from_field("mode", "").unwrap();
+        p.set_from_field("coaster_d", "").unwrap();
+        assert_eq!(p.mode, orig.mode);
+        assert_eq!(p.coaster_d, orig.coaster_d);
+    }
+
+    #[test]
+    fn set_from_field_updates_string_fields() {
+        let mut p = LibParams::default();
+        p.set_from_field("name", "hello").unwrap();
+        p.set_from_field("mode", "preview").unwrap();
+        p.set_from_field("shape", "circle").unwrap();
+        assert_eq!(p.name, "hello");
+        assert_eq!(p.mode, "preview");
+        assert_eq!(p.shape, "circle");
+    }
+
+    #[test]
+    fn set_from_field_updates_numeric_fields() {
+        let mut p = LibParams::default();
+        p.set_from_field("shape_rot", "30.5").unwrap();
+        p.set_from_field("coaster_d", "111.1").unwrap();
+        p.set_from_field("base_h", "6.25").unwrap();
+        p.set_from_field("seg", "123").unwrap();
+        p.set_from_field("edge_clear", "9.9").unwrap();
+        p.set_from_field("spinner_d", "17.0").unwrap();
+
+        assert!((p.shape_rot - 30.5).abs() < 1e-6);
+        assert!((p.coaster_d - 111.1).abs() < 1e-6);
+        assert!((p.base_h - 6.25).abs() < 1e-6);
+        assert_eq!(p.seg, 123);
+        assert!((p.edge_clear - 9.9).abs() < 1e-6);
+        assert!((p.spinner_d - 17.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn set_from_field_updates_bool_fields() {
+        let mut p = LibParams::default();
+        p.set_from_field("interlock", "true").unwrap();
+        p.set_from_field("use_spinner", "false").unwrap();
+        assert_eq!(p.interlock, true);
+        assert_eq!(p.use_spinner, false);
+    }
+
+    #[test]
+    fn set_from_field_invalid_number_errors() {
+        let mut p = LibParams::default();
+        assert!(p.set_from_field("coaster_d", "nope").is_err());
+        assert!(p.set_from_field("seg", "12.3").is_err());
+    }
+
+    #[test]
+    fn set_from_field_invalid_bool_errors() {
+        let mut p = LibParams::default();
+        assert!(p.set_from_field("interlock", "perhaps").is_err());
+        assert!(p.set_from_field("use_spinner", "2").is_err());
+    }
+
+    #[test]
+    fn set_from_field_unknown_field_does_not_error() {
+        let mut p = LibParams::default();
+        let orig = p.clone();
+        p.set_from_field("not_a_real_field", "123").unwrap();
+        assert_eq!(p.name, orig.name);
+        assert_eq!(p.seg, orig.seg);
+    }
+
+    #[test]
+    fn sanitize_filename_component_replaces_unsafe_chars() {
+        assert_eq!(sanitize_filename_component("My Logo!.svg"), "My_Logo__svg");
+        assert_eq!(
+            sanitize_filename_component("weird/\\name?*"),
+            "weird__name__"
+        );
+        assert_eq!(sanitize_filename_component("ümlaut💀"), "_mlaut_");
+    }
+
+    #[test]
+    fn build_openscad_args_contains_expected_params_and_order() {
+        let mut p = LibParams::default();
+        p.name = "My Logo".into();
+        p.mode = "preview".into();
+        p.shape = "circle".into();
+        p.interlock = true;
+        p.use_spinner = false;
+
+        let svg = PathBuf::from("/tmp/input.svg");
+        let stl = PathBuf::from("/tmp/output.stl");
+        let main_scad = PathBuf::from("/app/input.scad");
+
+        let args = build_openscad_args(0.25, 9.0, 123, &p, &svg, &stl, &main_scad);
+
+        // head args
+        assert_eq!(args[0], "--render");
+        assert_eq!(args[1], "-D");
+        assert_eq!(args[2], "fs=0.25");
+        assert!(args.contains(&"fa=9".to_string()) || args.contains(&"fa=9.0".to_string()));
+        assert!(args.contains(&"fn=123".to_string()));
+
+        // some lib params
+        assert!(args.contains(&"NAME=\"My Logo\"".to_string()));
+        assert!(args.contains(&"MODE=\"preview\"".to_string()));
+        assert!(args.contains(&"SHAPE=\"circle\"".to_string()));
+        assert!(args.contains(&"INTERLOCK=true".to_string()));
+        assert!(args.contains(&"USE_SPINNER=false".to_string()));
+
+        // svg path override
+        assert!(args.contains(&"SVG_PATH=\"/tmp/input.svg\"".to_string()));
+
+        // tail order: -o stl main_scad
+        let tail = &args[args.len() - 3..];
+        assert_eq!(tail[0], "-o");
+        assert_eq!(tail[1], "/tmp/output.stl");
+        assert_eq!(tail[2], "/app/input.scad");
+    }
+
+    #[tokio::test]
+    async fn index_returns_expected_html_bits() {
+        let Html(body) = index().await;
+        assert!(body.contains("<form action=\"/render\""));
+        assert!(body.contains("name=\"svg\""));
+        assert!(body.contains("name=\"name\""));
+        assert!(body.contains("Generate STL from SVG"));
     }
 }
