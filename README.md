@@ -31,6 +31,12 @@ file.
 
 ## Install
 
+You can install several ways, pick the way you like the best:
+
+ - with Podman.
+ - with Docker (plus Traefik).
+ - with native binary.
+
 ### Install for private use (without TLS)
 
 You may install the container by itself and open up the port on the
@@ -78,12 +84,23 @@ IMAGE=ghcr.io/enigmacurry/openscad-part-maker:latest
 ## Set the input SCAD file container path:
 INPUT_SCAD=/template/tile.scad
 
+## Basic auth tuple (plain):
+USERNAME=guest
+PASSWORD=hunter2
+
+# Convert AUTH -> htpasswd bcrypt line.
+AUTH="${USERNAME}:${PASSWORD}"
+AUTH_HASH="$(printf "%s:%s\n" "${AUTH%%:*}" "$(openssl passwd -apr1 "${AUTH#*:}")")"
+
 docker run -d \
   --name openscad-part-maker \
   -l traefik.enable=true \
   -l traefik.http.routers.openscad-part-maker.rule=Host\(\`${TRAEFIK_HOST}\`\) \
   -l traefik.http.routers.openscad-part-maker.entrypoints=websecure \
   -l traefik.http.routers.openscad-part-maker.tls=true \
+  -l traefik.http.routers.openscad-part-maker.middlewares=openscad-part-maker-auth@docker \
+  -l traefik.http.middlewares.openscad-part-maker-auth.basicauth.users="${AUTH_HASH}" \
+  -l traefik.http.middlewares.openscad-part-maker-auth.basicauth.removeheader=true \
   -l traefik.http.services.openscad-part-maker.loadbalancer.server.port=3000 \
   ${IMAGE} \
   serve \
@@ -93,7 +110,8 @@ docker run -d \
 
 Next, open your web browser to
 https://openscad-part-maker.example.com:3000 (replace the domain with
-the one you actually used above)
+the one you actually used above). Enter the Username and Password to
+get in.
 
 ### Install the native binary (without Docker or Podman)
 

@@ -42,7 +42,6 @@ bin-deps:
     cargo binstall --no-confirm cargo-llvm-cov
 
 # Build and run binary + args
-[no-cd]
 run *args:
     cargo run --manifest-path "{{MANIFEST}}" -- {{args}}
 
@@ -140,3 +139,4 @@ build-docker:
 
 serve: build-docker
     ${DOCKER} run --rm -it -p 3000:3000 ${DOCKER_IMAGE} serve --listen 0.0.0.0:3000 --input-scad ${INPUT_SCAD}
+ 

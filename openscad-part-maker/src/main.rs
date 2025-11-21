@@ -6,6 +6,7 @@ use clap_complete::shells::Shell;
 
 mod cli;
 mod prelude;
+mod scad_params;
 mod server;
 
 use prelude::*;
