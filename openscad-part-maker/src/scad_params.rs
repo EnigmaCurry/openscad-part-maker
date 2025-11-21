@@ -21,6 +21,8 @@ pub struct ParamSpec {
     pub ty: ParamType,
     #[allow(dead_code)]
     pub is_user_param: bool, // whether we consider it a real user-facing param
+    pub comment: String,
+    pub options: Vec<String>,
 }
 
 /// Template/specs discovered from the input .scad tree.
@@ -201,17 +203,21 @@ pub fn extract_param_specs(text: &str) -> Vec<ParamSpec> {
             continue;
         }
         let rhs = cap[2].trim().to_string();
-        let comment = cap.get(3).map(|m| m.as_str()).unwrap_or("");
+        let comment = cap
+            .get(3)
+            .map(|m| m.as_str())
+            .unwrap_or("")
+            .trim()
+            .to_string();
         let is_marked = comment.contains("@param");
         if is_marked {
             any_marked = true;
         }
-        raws.push((name, rhs, is_marked));
+        raws.push((name, rhs, is_marked, comment));
     }
 
     raws.into_iter()
-        .filter_map(|(name, rhs, is_marked)| {
-            // If user added any @param markers, require marker for user-facing params.
+        .filter_map(|(name, rhs, is_marked, comment)| {
             let is_user_param = if any_marked { is_marked } else { true };
 
             let ty = if rhs.trim_start().starts_with('"') {
@@ -223,11 +229,15 @@ pub fn extract_param_specs(text: &str) -> Vec<ParamSpec> {
                 }
             };
 
+            let options = parse_options_from_comment(&comment);
+
             Some(ParamSpec {
                 name,
                 default: rhs,
                 ty,
                 is_user_param,
+                comment,
+                options,
             })
         })
         .collect()
@@ -313,4 +323,30 @@ USE_SPINNER = true;
         assert_eq!(p.get_raw("USE_SPINNER").unwrap(), "false");
         assert!(p.get_raw("UNKNOWN").is_none());
     }
+}
+
+fn parse_options_from_comment(comment: &str) -> Vec<String> {
+    // Accept e.g.:
+    //   // @param options: base|inlay|magnet|preview
+    //   // options: octagon, circle
+    let lower = comment.to_ascii_lowercase();
+    let Some(idx) = lower.find("options:") else {
+        return Vec::new();
+    };
+
+    let rest = &comment[idx + "options:".len()..];
+    rest.split(|c: char| c == '|' || c == ',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+#[test]
+fn options_parse_from_comment() {
+    let scad = r#"
+MODE="base"; // @param options: base|inlay|magnet|preview
+"#;
+    let specs = extract_param_specs(scad);
+    let mode = specs.iter().find(|s| s.name == "MODE").unwrap();
+    assert_eq!(mode.options, vec!["base", "inlay", "magnet", "preview"]);
 }

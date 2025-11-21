@@ -4,33 +4,33 @@
 //  - Optional octagon outline sized across flats
 //  - NEW: central “spinner” hole for finger‑through & fidget‑spinner action
 // ------------------------------------------------
-MODE       = "base";      // "base", "inlay", "magnet", "preview"
-SHAPE      = "octagon";    // "circle" or "octagon"
-SHAPE_ROT  = 22.5;           // degrees to rotate outline (e.g. 22.5 for octagon with a flat on top)
-COASTER_D  = 101.6;       // 4 in → mm (circle dia or octagon across‑flats)
-BASE_H     = 5;           // coaster thickness
-INLAY_DH   = 1.2;         // depth of the logo pocket
-MARGIN     = 27.5;        // edge margin for logo
-CLEARANCE  = 0.10;        // total gap between pocket & inlay (mm)
-SEG        = 200;         // smoothness for circles
-INTERLOCK  = false;       // leave false unless you add boss dims below
-EDGE_CLEAR = 15;          // desired gap from magnets to outer edge
+MODE       = "base";      // @param options: base|inlay|magnet|preview
+SHAPE      = "octagon";   // @param options: hexagon|circle|octagon
+SHAPE_ROT  = 22.5;        // @param degrees to rotate outline (e.g. 22.5 for octagon with a flat on top)
+COASTER_D  = 101.6;       // @param 4 in → mm (circle dia or octagon across‑flats)
+BASE_H     = 5;           // @param coaster thickness
+INLAY_DH   = 1.2;         // @param depth of the logo pocket
+MARGIN     = 27.5;        // @param edge margin for logo
+CLEARANCE  = 0.10;        // @param total gap between pocket & inlay (mm)
+SEG        = 200;         // @param smoothness for circles
+INTERLOCK  = false;       // @param leave false unless you add boss dims below
+EDGE_CLEAR = 15;          // @param desired gap from magnets to outer edge
 
 // --- Magnet parameters (adjust to your parts) ---
-MAG_D      = 15.5;          // disc magnet diameter
-MAG_H      = 3.0;          // magnet thickness
-MAG_CLEAR  = 0.5;          // extra diameter clearance for easy fit
-BOTTOM_SKIN = 0.4;         // plastic between magnet and the underside; set 0 for an open bottom
+MAG_D      = 15.5;          // @param disc magnet diameter
+MAG_H      = 3.0;          // @param magnet thickness
+MAG_CLEAR  = 0.5;          // @param extra diameter clearance for easy fit
+BOTTOM_SKIN = 0.4;         // @param plastic between magnet and the underside; set 0 for an open bottom
 assert(BASE_H > (BOTTOM_SKIN + MAG_H + 0.1),
        "Increase BASE_H or reduce MAG_H / BOTTOM_SKIN");
 
 // --- (Only used if you later enable INTERLOCK) ---
-BOSS_CLEARANCE = 0.2;
-BOSS_H = 0.8;
+BOSS_CLEARANCE = 0.2;      // @param 
+BOSS_H = 0.8;              // @param 
 
 // --- NEW: spinner‑hole parameters ---
-SPINNER_D  = 15;          // diameter of the finger‑through hole (mm)
-USE_SPINNER = true;      // set false to omit the hole
+SPINNER_D  = 15;          // @param diameter of the finger‑through hole (mm)
+USE_SPINNER = true;      // @param set false to omit the hole
 
 SVG_PATH = "AWS-ECS-ol-ORANGE.svg";
 

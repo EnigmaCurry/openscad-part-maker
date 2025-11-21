@@ -10,7 +10,7 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc};
 use tempfile::tempdir;
 use tokio::{net::TcpListener, process::Command};
 
-use crate::scad_params::{sanitize_filename_component, ScadParamTemplate, ScadParams};
+use crate::scad_params::{sanitize_filename_component, ParamType, ScadParamTemplate, ScadParams};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -42,15 +42,190 @@ pub async fn run(addr: SocketAddr, input_scad_path: PathBuf) -> anyhow::Result<(
     Ok(())
 }
 
-async fn index() -> Html<&'static str> {
-    Html(
+async fn index(State(state): State<Arc<AppState>>) -> Html<String> {
+    Html(build_index_html(&state.scad_template))
+}
+
+/// Generate the index HTML using discovered SCAD parameters.
+/// `fs/fa/fn` stay static. Everything in template that is_user_param becomes a field.
+fn build_index_html(template: &ScadParamTemplate) -> String {
+    let mut param_fields = String::new();
+
+    // We keep NAME as a special required field right after SVG upload.
+    let have_name = template
+        .specs
+        .get("NAME")
+        .map(|s| s.is_user_param)
+        .unwrap_or(false);
+
+    for spec in template.specs.values() {
+        if !spec.is_user_param {
+            continue;
+        }
+
+        // NAME is handled specially above; SVG_PATH is always overridden by upload.
+        if spec.name == "NAME" || spec.name == "SVG_PATH" {
+            continue;
+        }
+
+        let field_name = spec.name.to_ascii_lowercase(); // snake-ish already
+        let label = humanize_scad_name(&spec.name);
+        let default_unquoted = unquote_if_string(&spec.default);
+
+        match spec.ty {
+            ParamType::Bool => {
+                let checked = if spec.default.trim().eq_ignore_ascii_case("true") {
+                    "checked"
+                } else {
+                    ""
+                };
+                param_fields.push_str(&format!(
+                    r#"
+      <div class="field-row checkbox-row">
+        <span></span>
+        <label class="checkbox-label">
+          <input id="{id}" type="checkbox" name="{name}" {checked}>
+          {label}
+        </label>
+      </div>
+"#,
+                    id = field_name,
+                    name = field_name,
+                    label = html_escape(&label),
+                    checked = checked
+                ));
+            }
+            ParamType::Number => {
+                let step = if default_unquoted.contains('.') {
+                    "0.1"
+                } else {
+                    "1"
+                };
+                param_fields.push_str(&format!(
+                    r#"
+      <div class="field-row">
+        <label for="{id}">{label}</label>
+        <input id="{id}" type="number" step="{step}" name="{name}" value="{val}">
+      </div>
+"#,
+                    id = field_name,
+                    name = field_name,
+                    label = html_escape(&label),
+                    step = step,
+                    val = html_escape(&default_unquoted)
+                ));
+            }
+            ParamType::String => {
+                // If comment declared options, use them. Otherwise fall back for known enums.
+                let mut options = spec.options.clone();
+                if options.is_empty() {
+                    options = match spec.name.as_str() {
+                        "MODE" => vec!["base", "inlay", "magnet", "preview"]
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect(),
+                        "SHAPE" => vec!["octagon", "circle"]
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect(),
+                        _ => Vec::new(),
+                    };
+                }
+
+                if !options.is_empty() {
+                    let opts_html = options
+                        .iter()
+                        .map(|opt| {
+                            let selected = if opt == &default_unquoted {
+                                " selected"
+                            } else {
+                                ""
+                            };
+                            format!(
+                                r#"          <option value="{v}"{sel}>{label}</option>"#,
+                                v = html_escape(opt),
+                                label = html_escape(opt),
+                                sel = selected
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
+                    param_fields.push_str(&format!(
+                        r#"
+      <div class="field-row">
+        <label for="{id}">{label}</label>
+        <select id="{id}" name="{name}">
+{opts}
+        </select>
+      </div>
+"#,
+                        id = field_name,
+                        name = field_name,
+                        label = html_escape(&label),
+                        opts = opts_html
+                    ));
+                } else {
+                    // No options → plain text input.
+                    param_fields.push_str(&format!(
+                        r#"
+      <div class="field-row">
+        <label for="{id}">{label}</label>
+        <input id="{id}" type="text" name="{name}" value="{val}">
+      </div>
+"#,
+                        id = field_name,
+                        name = field_name,
+                        label = html_escape(&label),
+                        val = html_escape(&default_unquoted)
+                    ));
+                }
+            }
+        }
+    }
+
+    // If NAME is not a marked param, we still show it (previous UX).
+    let name_field = if have_name || template.specs.get("NAME").is_some() {
+        r#"
+      <!-- 2. Name (required, auto-filled from SVG) -->
+      <div class="field-row">
+        <label for="name">Name</label>
+        <input
+          id="name"
+          type="text"
+          name="name"
+          placeholder="Name"
+          required
+        >
+      </div>
+"#
+        .to_string()
+    } else {
+        // Still show it even if not in specs; it will be used for filename + -D NAME
+        r#"
+      <!-- 2. Name (required, auto-filled from SVG) -->
+      <div class="field-row">
+        <label for="name">Name</label>
+        <input
+          id="name"
+          type="text"
+          name="name"
+          placeholder="Name"
+          required
+        >
+      </div>
+"#
+        .to_string()
+    };
+
+    format!(
         r#"<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <title>OpenSCAD STL Generator</title>
   <style>
-    :root {
+    :root {{
       color-scheme: dark light;
       --bg: #0f172a;
       --fg: #e5e7eb;
@@ -59,8 +234,8 @@ async fn index() -> Html<&'static str> {
       --accent-hover: #16a34a;
       --border: #1f2937;
       --input-bg: #020617;
-    }
-    body {
+    }}
+    body {{
       margin: 0;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: radial-gradient(circle at top, #1f2937, #020617);
@@ -70,8 +245,8 @@ async fn index() -> Html<&'static str> {
       align-items: center;
       justify-content: center;
       padding: 1.5rem;
-    }
-    .card {
+    }}
+    .card {{
       background: rgba(2, 6, 23, 0.95);
       border: 1px solid var(--border);
       border-radius: 1rem;
@@ -80,34 +255,34 @@ async fn index() -> Html<&'static str> {
       width: 100%;
       box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
       backdrop-filter: blur(12px);
-    }
-    h1 {
+    }}
+    h1 {{
       margin: 0 0 0.75rem;
       font-size: 1.4rem;
       text-align: center;
-    }
-    p.subtitle {
+    }}
+    p.subtitle {{
       margin: 0 0 1.5rem;
       color: #9ca3af;
       font-size: 0.95rem;
       text-align: center;
-    }
-    form {
+    }}
+    form {{
       margin-top: 0.5rem;
-    }
-    .field-row {
+    }}
+    .field-row {{
       display: grid;
       grid-template-columns: 180px minmax(0, 1fr);
       column-gap: 0.75rem;
       align-items: center;
       margin-bottom: 0.6rem;
-    }
-    .field-row label {
+    }}
+    .field-row label {{
       font-size: 0.85rem;
       color: #d1d5db;
-    }
+    }}
     .field-row input,
-    .field-row select {
+    .field-row select {{
       padding: 0.45rem 0.6rem;
       border-radius: 0.5rem;
       border: 1px solid var(--border);
@@ -118,45 +293,45 @@ async fn index() -> Html<&'static str> {
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
       width: 100%;
       box-sizing: border-box;
-    }
-    .field-row input[type="file"] {
+    }}
+    .field-row input[type="file"] {{
       padding: 0.3rem;
-    }
+    }}
     .field-row input:focus,
-    .field-row select:focus {
+    .field-row select:focus {{
       border-color: var(--accent);
       box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.4);
-    }
-    .section-title {
+    }}
+    .section-title {{
       margin: 0.9rem 0 0.15rem;
       font-size: 0.9rem;
       font-weight: 600;
       color: #9ca3af;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-    }
-    .section-divider {
+    }}
+    .section-divider {{
       height: 1px;
       border: none;
       background: linear-gradient(to right, transparent, #1f2937, transparent);
       margin: 0 0 0.6rem;
-    }
-    .checkbox-row {
+    }}
+    .checkbox-row {{
       grid-template-columns: 180px minmax(0, 1fr);
-    }
-    .checkbox-label {
+    }}
+    .checkbox-label {{
       display: inline-flex;
       align-items: center;
       gap: 0.45rem;
       font-size: 0.9rem;
       color: #d1d5db;
-    }
-    .checkbox-label input[type="checkbox"] {
+    }}
+    .checkbox-label input[type="checkbox"] {{
       width: 1rem;
       height: 1rem;
       accent-color: var(--accent);
-    }
-    button[type="submit"] {
+    }}
+    button[type="submit"] {{
       margin-top: 0.8rem;
       width: 100%;
       padding: 0.55rem 0.75rem;
@@ -169,22 +344,22 @@ async fn index() -> Html<&'static str> {
       cursor: pointer;
       box-shadow: 0 14px 30px rgba(22, 163, 74, 0.45);
       transition: transform 0.1s ease, box-shadow 0.1s ease, filter 0.1s ease;
-    }
-    button[type="submit"]:hover {
+    }}
+    button[type="submit"]:hover {{
       filter: brightness(1.05);
       box-shadow: 0 18px 40px rgba(22, 163, 74, 0.7);
       transform: translateY(-1px);
-    }
-    button[type="submit"]:active {
+    }}
+    button[type="submit"]:active {{
       transform: translateY(1px);
       box-shadow: 0 10px 22px rgba(22, 163, 74, 0.6);
-    }
-    .hint {
+    }}
+    .hint {{
       margin-top: 0.5rem;
       font-size: 0.8rem;
       color: #9ca3af;
       text-align: center;
-    }
+    }}
   </style>
 </head>
 <body>
@@ -200,17 +375,8 @@ async fn index() -> Html<&'static str> {
         <label for="svg">SVG file</label>
         <input id="svg" type="file" name="svg" accept=".svg" required>
       </div>
-      <!-- 2. Name (required, auto-filled from SVG) -->
-      <div class="field-row">
-        <label for="name">Name</label>
-        <input
-          id="name"
-          type="text"
-          name="name"
-          placeholder="Name"
-          required
-        >
-      </div>
+
+{NAME_FIELD}
 
       <div class="section-title">OpenSCAD quality</div>
       <hr class="section-divider">
@@ -228,79 +394,10 @@ async fn index() -> Html<&'static str> {
         <input id="fn" type="number" step="1" name="fn" value="200">
       </div>
 
-      <div class="section-title">Coaster parameters (lib.scad)</div>
+      <div class="section-title">OpenSCAD parameters</div>
       <hr class="section-divider">
 
-      <div class="field-row">
-        <label for="mode">Mode</label>
-        <select id="mode" name="mode">
-          <option value="base" selected>base</option>
-          <option value="inlay">inlay</option>
-          <option value="magnet">magnet</option>
-          <option value="preview">preview</option>
-        </select>
-      </div>
-      <div class="field-row">
-        <label for="shape">Shape</label>
-        <select id="shape" name="shape">
-          <option value="octagon" selected>octagon</option>
-          <option value="circle">circle</option>
-        </select>
-      </div>
-      <div class="field-row">
-        <label for="shape_rot">Shape rotation (deg)</label>
-        <input id="shape_rot" type="number" step="0.1" name="shape_rot" value="22.5">
-      </div>
-      <div class="field-row">
-        <label for="coaster_d">Coaster diameter (mm)</label>
-        <input id="coaster_d" type="number" step="0.1" name="coaster_d" value="101.6">
-      </div>
-      <div class="field-row">
-        <label for="base_h">Base height (mm)</label>
-        <input id="base_h" type="number" step="0.1" name="base_h" value="5">
-      </div>
-      <div class="field-row">
-        <label for="inlay_dh">Inlay depth (mm)</label>
-        <input id="inlay_dh" type="number" step="0.1" name="inlay_dh" value="1.2">
-      </div>
-      <div class="field-row">
-        <label for="margin">Margin (mm)</label>
-        <input id="margin" type="number" step="0.1" name="margin" value="27.5">
-      </div>
-      <div class="field-row">
-        <label for="clearance">Clearance (mm)</label>
-        <input id="clearance" type="number" step="0.01" name="clearance" value="0.10">
-      </div>
-      <div class="field-row">
-        <label for="seg">Segments</label>
-        <input id="seg" type="number" step="1" name="seg" value="200">
-      </div>
-      <div class="field-row checkbox-row">
-        <span></span>
-        <label class="checkbox-label">
-          <input id="interlock" type="checkbox" name="interlock">
-          Interlock
-        </label>
-      </div>
-      <div class="field-row">
-        <label for="edge_clear">Edge clear (mm)</label>
-        <input id="edge_clear" type="number" step="0.1" name="edge_clear" value="15">
-      </div>
-
-      <div class="section-title">Spinner</div>
-      <hr class="section-divider">
-
-      <div class="field-row">
-        <label for="spinner_d">Spinner diameter (mm)</label>
-        <input id="spinner_d" type="number" step="0.1" name="spinner_d" value="15">
-      </div>
-      <div class="field-row checkbox-row">
-        <span></span>
-        <label class="checkbox-label">
-          <input id="use_spinner" type="checkbox" name="use_spinner" checked>
-          Use spinner hole
-        </label>
-      </div>
+{PARAM_FIELDS}
 
       <button type="submit">Generate STL</button>
       <div class="hint">
@@ -310,14 +407,14 @@ async fn index() -> Html<&'static str> {
   </div>
 
   <script>
-    (function () {
+    (function () {{
       const fileInput = document.getElementById('svg');
       const nameInput = document.getElementById('name');
       if (!fileInput || !nameInput) return;
 
       let lastAutoName = "";
 
-      fileInput.addEventListener('change', function () {
+      fileInput.addEventListener('change', function () {{
         const file = this.files && this.files[0];
         if (!file) return;
 
@@ -326,17 +423,53 @@ async fn index() -> Html<&'static str> {
         const base = dot > 0 ? fullName.slice(0, dot) : fullName;
 
         // Only overwrite if the field is empty or matches the last auto-filled name
-        if (nameInput.value.trim() === "" || nameInput.value === lastAutoName) {
+        if (nameInput.value.trim() === "" || nameInput.value === lastAutoName) {{
           nameInput.value = base;
           lastAutoName = base;
-        }
-      });
-    })();
+        }}
+      }});
+    }})();
   </script>
 </body>
 </html>
 "#,
+        NAME_FIELD = name_field,
+        PARAM_FIELDS = param_fields
     )
+}
+
+fn humanize_scad_name(name: &str) -> String {
+    // "COASTER_D" -> "Coaster D", "BOTTOM_SKIN" -> "Bottom Skin"
+    name.split('_')
+        .map(|w| {
+            let mut chars = w.chars();
+            match chars.next() {
+                None => String::new(),
+                Some(c) => {
+                    let rest = chars.as_str().to_ascii_lowercase();
+                    format!("{}{}", c.to_ascii_uppercase(), rest)
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn unquote_if_string(rhs: &str) -> String {
+    let t = rhs.trim();
+    if t.starts_with('"') && t.ends_with('"') && t.len() >= 2 {
+        t[1..t.len() - 1].to_string()
+    } else {
+        t.to_string()
+    }
+}
+
+fn html_escape(s: &str) -> String {
+    s.replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }
 
 /// POST /render – accepts multipart form with an SVG file and params, returns STL.
@@ -351,8 +484,9 @@ async fn render_svg_to_stl(
     let mut fa: f32 = 5.0;
     let mut fn_: i32 = 200;
 
-    // lib.scad parameters:
+    // Discovered params:
     let mut scad_params = state.scad_template.instantiate();
+    let mut form_name: Option<String> = None;
 
     while let Some(field) = multipart.next_field().await.map_err(|err| {
         error!("Failed to read multipart field: {err}");
@@ -392,12 +526,27 @@ async fn render_svg_to_stl(
                     fn_ = text.parse().map_err(|_| StatusCode::BAD_REQUEST)?;
                 }
             }
+            "name" => {
+                // Keep old UX: always accept name, even if not in scad defaults.
+                form_name = Some(text.clone());
+                scad_params
+                    .set_from_field(&name, &text)
+                    .map_err(|_| StatusCode::BAD_REQUEST)?;
+            }
             _ => {
                 scad_params
                     .set_from_field(&name, &text)
                     .map_err(|_| StatusCode::BAD_REQUEST)?;
             }
         }
+    }
+
+    // Force NAME into params if user gave one, even if template lacks a NAME spec.
+    if let Some(n) = form_name {
+        let esc = n.replace('\\', "\\\\").replace('"', "\\\"");
+        scad_params
+            .values
+            .insert("NAME".into(), format!("\"{}\"", esc));
     }
 
     let svg_bytes = svg_bytes.ok_or(StatusCode::BAD_REQUEST)?;
@@ -440,7 +589,6 @@ async fn render_svg_to_stl(
         return Err(StatusCode::INTERNAL_SERVER_ERROR);
     }
 
-    // ... read STL + build response as before ...
     let stl_bytes = tokio::fs::read(&stl_path).await.map_err(|err| {
         error!("Failed to read generated STL: {err}");
         StatusCode::INTERNAL_SERVER_ERROR
@@ -448,7 +596,6 @@ async fn render_svg_to_stl(
 
     let mut headers = HeaderMap::new();
 
-    // Whatever you’re using as the base name:
     let safe_name = sanitize_filename_component(
         &scad_params
             .get_raw("NAME")
@@ -459,22 +606,17 @@ async fn render_svg_to_stl(
 
     headers.insert(header::CONTENT_TYPE, HeaderValue::from_static("model/stl"));
 
-    // Build the disposition string at runtime
     let disposition = format!("attachment; filename=\"{safe_name}.stl\"");
-
-    // Convert it into a HeaderValue safely
     let disposition_value = HeaderValue::from_str(&disposition).map_err(|err| {
         error!("Invalid Content-Disposition header value: {err}");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
-
     headers.insert(header::CONTENT_DISPOSITION, disposition_value);
 
     Ok((headers, stl_bytes).into_response())
 }
 
 async fn shutdown_signal() {
-    // Wait for either Ctrl+C or SIGTERM.
     let ctrl_c = async {
         tokio::signal::ctrl_c()
             .await
@@ -503,8 +645,6 @@ async fn shutdown_signal() {
     }
 }
 
-/// Build the OpenSCAD command-line args as a pure Vec<String> so tests can
-/// validate ordering and values without spawning OpenSCAD.
 fn build_openscad_args(
     fs: f32,
     fa: f32,
@@ -524,13 +664,11 @@ fn build_openscad_args(
     args.push("-D".into());
     args.push(format!("fn={fn_}"));
 
-    // Discovered SCAD params in stable order:
     for define in scad_params.iter_defines() {
         args.push("-D".into());
         args.push(define);
     }
 
-    // SVG path override always wins:
     args.push("-D".into());
     args.push(format!("SVG_PATH=\"{}\"", svg_path.display()));
 
@@ -543,9 +681,8 @@ fn build_openscad_args(
 
 #[cfg(test)]
 mod tests {
-    use crate::scad_params::parse_bool;
-
     use super::*;
+    use crate::scad_params::{extract_param_specs, parse_bool, ScadParamTemplate};
 
     #[test]
     fn parse_bool_accepts_truthy_variants() {
@@ -580,8 +717,6 @@ mod tests {
 
     #[test]
     fn build_openscad_args_contains_expected_params_and_order() {
-        use crate::scad_params::ScadParamTemplate;
-
         let scad = r#"
 NAME="output"; // @param
 MODE="base"; // @param
@@ -590,8 +725,7 @@ INTERLOCK=false; // @param
 USE_SPINNER=true; // @param
 "#;
 
-        // build template directly from text:
-        let specs = crate::scad_params::extract_param_specs(scad);
+        let specs = extract_param_specs(scad);
         let mut map = std::collections::BTreeMap::new();
         let mut defaults = std::collections::BTreeMap::new();
         for s in specs {
@@ -626,12 +760,33 @@ USE_SPINNER=true; // @param
         assert!(args.contains(&"USE_SPINNER=false".to_string()));
     }
 
-    #[tokio::test]
-    async fn index_returns_expected_html_bits() {
-        let Html(body) = index().await;
-        assert!(body.contains("<form action=\"/render\""));
-        assert!(body.contains("name=\"svg\""));
-        assert!(body.contains("name=\"name\""));
-        assert!(body.contains("Generate STL from SVG"));
+    #[test]
+    fn build_index_html_renders_discovered_fields() {
+        let scad = r#"
+NAME="output"; // @param
+COASTER_D=101.6; // @param
+USE_SPINNER=true; // @param
+"#;
+
+        let specs = extract_param_specs(scad);
+        let mut map = std::collections::BTreeMap::new();
+        let mut defaults = std::collections::BTreeMap::new();
+        for s in specs {
+            defaults.insert(s.name.clone(), s.default.clone());
+            map.insert(s.name.clone(), s);
+        }
+        let tmpl = ScadParamTemplate {
+            specs: map,
+            defaults,
+        };
+
+        let html = build_index_html(&tmpl);
+
+        assert!(html.contains("<form action=\"/render\""));
+        assert!(html.contains("name=\"svg\""));
+        assert!(html.contains("name=\"name\""));
+        assert!(html.contains("name=\"coaster_d\""));
+        assert!(html.contains("name=\"use_spinner\""));
+        assert!(html.contains("OpenSCAD parameters"));
     }
 }
