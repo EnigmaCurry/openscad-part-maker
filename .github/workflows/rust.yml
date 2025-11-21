@@ -68,13 +68,15 @@ jobs:
         working-directory: ${{ env.PROJECT_DIR }}
         run: just bin-deps
 
-      - name: Build
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: just build --release
+      ## Don't build. just let the coverage report build it.
+      # - name: Build
+      #   working-directory: ${{ env.PROJECT_DIR }}
+      #   run: just build --release
 
-      - name: Run tests
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: just test --release
+      ## Don't test. just let the coverage report test it.
+      # - name: Run tests
+      #   working-directory: ${{ env.PROJECT_DIR }}
+      #   run: just test --release
 
       - name: Run coverage report
         working-directory: ${{ env.PROJECT_DIR }}

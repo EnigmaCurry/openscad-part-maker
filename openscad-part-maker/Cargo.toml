@@ -1,7 +1,7 @@
 [package]
 name = "openscad-part-maker"
 description = "openscad-part-maker is a CLI tool"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2024"
 repository = "https://github.com/enigmacurry/openscad-part-maker"
 homepage = "https://github.com/enigmacurry/openscad-part-maker"
